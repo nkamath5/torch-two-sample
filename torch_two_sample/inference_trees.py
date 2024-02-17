@@ -109,16 +109,32 @@ class TreeMarginals(object):
             ``n * (n - 1) // 2``."""
         d = d - d.max()  # So that we don't have to compute large exponentials.
 
+        #breakpoint()
         # Construct the Laplacian.
         L_off = self.to_mat(torch.exp(d))
         L_off = L_off + L_off.t()
         L_dia = torch.diag(L_off.sum(1))
         L = L_dia - L_off
         L = L[1:, 1:]
+        assert torch.any(torch.isnan(L)) == False, "L is the Laplacian; it has a NaN value"  #edited
+        #print("Value of L:\n", L)
 
         A = Variable(self.A, requires_grad=False)
         P = (1. / torch.diag(L)).view(1, -1)  # The diagonal pre-conditioner.
-        Z, _ = torch.gesv(A, L * P.expand_as(L))
+        assert torch.any(torch.isinf(P)) == False, "P has inf; check alpha as distances might be too high"  #edited
+        assert torch.any(torch.isnan(P)) == False, "P has a NaN value"  #edited
+        ##print(f"A.shape : {A.shape}")
+        ##print(f"L.shape : {L.shape}")
+        ##print(f"(L * P.expand_as(L)).shape : {(L * P.expand_as(L)).shape}")
+        ##print(f"self.n_vertices : {self.n_vertices}")
+        Z, _ = torch.solve(A, L * P.expand_as(L))
+        ##Z = torch.linalg.solve(L * P.expand_as(L), A)
+        ##Z, _ = torch.lstsq(A, L * P.expand_as(L))  # apparently derivative of torch.lstsq isn't implemented
+        assert torch.any(torch.isnan(Z)) == False, "Z is the solution of either torch.solve or torch.linalg.solve ; and Z has a NaN value"  #edited
         Z = Z * P.t().expand_as(Z)
         # relu for numerical stability, the inside term should never be zero.
-        return relu(torch.sum(Z * A, 0)) * torch.exp(d)
+        ##print(f"Z : {Z}")
+        returned_t = relu(torch.sum(Z * A, 0)) * torch.exp(d)
+        assert torch.any(torch.isnan(returned_t)) == False, "The expression relu(torch.sum(Z * A, 0)) * torch.exp(d) has a NaN value"  #edited
+        return returned_t
+        ##return relu(torch.sum(Z * A, 0)) * torch.exp(d)

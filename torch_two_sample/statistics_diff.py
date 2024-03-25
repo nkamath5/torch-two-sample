@@ -253,7 +253,7 @@ class SmoothKNNStatistic(object):
             else:
                 margs_ = margs_ + margs_a
 
-        margs_ /= len(alphas)
+        margs_ = margs_ / len(alphas)
         # The variable margs_ is a matrix of size n x n-1, which we want to
         # reshape to n x n by adding a zero diagonal, as it makes the following
         # logic easier to follow. The variable margs_ is on the GPU when k=1.

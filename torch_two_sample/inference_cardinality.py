@@ -62,9 +62,14 @@ def compute_bwd(node_pot, msg_in):
     """Compute the new backward message from the given node potential and
     incoming message."""
     node_pot = node_pot.unsqueeze(1)
-    msg_out = msg_in.clone()
-    msg_out[:, 1:] = logaddexp(
-        msg_out[:, 1:], node_pot.expand_as(msg_in[:, :-1]) + msg_in[:, :-1])
+    #msg_out = msg_in.clone()
+    #msg_out[:, 1:] = logaddexp(
+    #    msg_out[:, 1:], node_pot.expand_as(msg_in[:, :-1]) + msg_in[:, :-1])
+
+    msg_out_first_col = msg_in[:, 0].clone().view(-1,1)
+    msg_out_all_but_first = logaddexp(msg_in[:, 1:], node_pot.expand_as(msg_in[:, :-1]) + msg_in[:, :-1])
+    msg_out = torch.cat((msg_out_first_col, msg_out_all_but_first), dim=1)
+    
     # Normalize for numerical stability.
     return msg_out - logsumexp(msg_out, 1).expand_as(msg_out)
 
@@ -73,9 +78,14 @@ def compute_fwd(node_pot, msg_in):
     """Compute the new forward message from the given node potential and
     incoming message."""
     node_pot = node_pot.unsqueeze(1)
-    msg_out = msg_in.clone()
-    msg_out[:, :-1] = logaddexp(
-        msg_out[:, :-1], node_pot.expand_as(msg_in[:, 1:]) + msg_in[:, 1:])
+    #msg_out = msg_in.clone()
+    #msg_out[:, :-1] = logaddexp(
+    #    msg_out[:, :-1], node_pot.expand_as(msg_in[:, 1:]) + msg_in[:, 1:])
+    
+    msg_out_last_col = msg_in[:, -1].clone().view(-1,1)
+    msg_out_all_but_last = logaddexp(msg_in[:, :-1], node_pot.expand_as(msg_in[:, 1:]) + msg_in[:, 1:])
+    msg_out = torch.cat((msg_out_all_but_last, msg_out_last_col), dim=1)
+    
     # Normalize for numerical stability.
     return msg_out - logsumexp(msg_out, 1).expand_as(msg_out)
 
@@ -143,14 +153,17 @@ def inference_cardinality(node_potentials, cardinality_potential):
     b1 = logsumexp(bb[:, :, :-1] + ff[:, :, 1:], 2).view(
         batch_size, dim_node-1) + node_potentials[:, :-1]
 
-    marginals = create_var(0, batch_size, dim_node)
-    marginals[:, :-1] = torch.sigmoid(b1 - b0)
+    #marginals = create_var(0, batch_size, dim_node)
+    #marginals[:, :-1] = torch.sigmoid(b1 - b0)
+    marginals_all_but_last = torch.sigmoid(b1 - b0)
 
     # Could probably structure things so the Dth var doesn't need to be
     # special-cased.  but this will do for now.  rather than computing
     # a belief at a pairwise potential, we do it at the variable.
     b0_D = fmsgs[:, dim_node-1, 0] + bmsgs[:, dim_node, 0]
     b1_D = fmsgs[:, dim_node-1, 1] + bmsgs[:, dim_node, 1]
-    marginals[:, dim_node-1] = torch.sigmoid(b1_D - b0_D)
+    #marginals[:, dim_node-1] = torch.sigmoid(b1_D - b0_D)
+    marginals_last = torch.sigmoid(b1_D - b0_D).view(-1, 1)
+    marginals = torch.cat((marginals_all_but_last, marginals_last), dim=1)
 
     return marginals
